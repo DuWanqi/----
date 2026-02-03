@@ -195,9 +195,11 @@ export class GameUI {
       background: rgba(0, 0, 0, 0.9);
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       align-items: center;
       pointer-events: auto;
+      overflow-y: auto;
+      padding: 30px 0;
     `
     menu.innerHTML = `
       <div style="text-align: center;">
@@ -253,9 +255,23 @@ export class GameUI {
           </button>
         </div>
         
-        <div style="margin-top: 40px; color: #555; font-size: 12px; max-width: 400px; line-height: 1.6;">
+        <div style="margin-top: 30px; color: #555; font-size: 12px; max-width: 400px; line-height: 1.6;">
           山屋是后室的Level 5层级，一个19世纪因家族崇拜外神而意外打通后室通道的废弃酒店。
           <br>你与AI同伴误入此处，必须在空间循环与实体威胁中寻找出口...
+        </div>
+        
+        <div style="margin-top: 25px; padding: 15px 20px; background: rgba(50, 50, 60, 0.5); border-radius: 8px; border: 1px solid rgba(100, 100, 120, 0.3);">
+          <div style="color: #c9b458; font-size: 14px; font-weight: bold; margin-bottom: 12px;">🎮 操作指南</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #aaa;">
+            <div><span style="color: #87ceeb; font-weight: bold;">WASD / 方向键</span> - 移动</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">Shift</span> - 奔跑</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">Space</span> - 拾取物品</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">E</span> - 互动/煤油灯</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">I</span> - 打开背包</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">F</span> - 与队友交谈</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">~</span> - 查看日志</div>
+            <div><span style="color: #87ceeb; font-weight: bold;">ESC</span> - 暂停菜单</div>
+          </div>
         </div>
       </div>
     `
@@ -673,6 +689,45 @@ export class GameUI {
   // 显示警告
   showWarning(text: string): void {
     this.showDialogue('⚠️ 警告', text, 3000)
+  }
+
+  // 显示重要警告（屏幕中央红色闪烁）
+  showCriticalWarning(text: string): void {
+    const warning = document.createElement('div')
+    warning.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 40px;
+      background: linear-gradient(135deg, rgba(180, 30, 30, 0.95) 0%, rgba(120, 20, 20, 0.9) 100%);
+      border: 3px solid #ff4444;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+      z-index: 9999;
+      box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+      animation: warningPulse 0.5s ease-in-out 3;
+    `
+    warning.textContent = text
+    
+    // 添加动画样式
+    const style = document.createElement('style')
+    style.textContent = `
+      @keyframes warningPulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.8; }
+      }
+    `
+    document.head.appendChild(style)
+    document.body.appendChild(warning)
+    
+    setTimeout(() => {
+      warning.remove()
+      style.remove()
+    }, 2500)
   }
 
   // 清理

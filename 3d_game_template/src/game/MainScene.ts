@@ -39,6 +39,7 @@ export class MainScene {
   private inventoryOpen = false
   private lastRoomKey = ''
   private roomTransitionCooldown = 0  // 房间切换冷却时间
+  private smilerWarningShown = false  // Smiler警告是否已显示（防止每帧调用）
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     this.scene = scene
@@ -125,6 +126,17 @@ export class MainScene {
         this.interactWithCompanion()
       }
       
+      // E 互动（煤油灯/出口传送门）
+      if (e.code === 'KeyE' && this.phase === GamePhase.PLAYING) {
+        // 如果在出口房间，触发逃离
+        if (this.currentRoom?.type === RoomType.EXIT) {
+          this.triggerExit()
+        } else if (this.player) {
+          // 否则切换煤油灯
+          this.player.toggleLamp()
+        }
+      }
+      
       // 空格 拾取物品
       if (e.code === 'Space' && this.phase === GamePhase.PLAYING) {
         this.tryPickupItem()
@@ -194,42 +206,47 @@ export class MainScene {
   }
 
   update(): void {
-    const delta = this.clock.getDelta()
-    
-    if (this.phase !== GamePhase.PLAYING) return
-    
-    this.timeElapsed += delta
-    
-    // 更新玩家
-    if (this.player) {
-      this.player.update(delta)
+    try {
+      const delta = this.clock.getDelta()
       
-      // 检测玩家是否进入新房间
-      this.checkRoomTransition()
+      if (this.phase !== GamePhase.PLAYING) return
       
-      // 更新相机跟随
-      this.updateCamera()
+      this.timeElapsed += delta
+      
+      // 更新玩家
+      if (this.player) {
+        this.player.update(delta)
+        
+        // 检测玩家是否进入新房间
+        this.checkRoomTransition()
+        
+        // 更新相机跟随
+        this.updateCamera()
+      }
+      
+      // 更新AI队友
+      if (this.companion && this.player) {
+        this.companion.update(delta, this.player.state.position)
+      }
+      
+      // 更新实体
+      this.updateEntities(delta)
+      
+      // 更新AI服务
+      aiService.update(delta)
+      
+      // 检测碰撞和交互
+      this.checkCollisions()
+      
+      // 检测游戏状态
+      this.checkGameState()
+      
+      // 更新UI
+      this.updateUI()
+    } catch (error) {
+      console.error('游戏更新错误:', error)
+      logger.error(`游戏更新错误: ${error}`)
     }
-    
-    // 更新AI队友
-    if (this.companion && this.player) {
-      this.companion.update(delta, this.player.state.position)
-    }
-    
-    // 更新实体
-    this.updateEntities(delta)
-    
-    // 更新AI服务
-    aiService.update(delta)
-    
-    // 检测碰撞和交互
-    this.checkCollisions()
-    
-    // 检测游戏状态
-    this.checkGameState()
-    
-    // 更新UI
-    this.updateUI()
   }
 
   private checkRoomTransition(): void {
@@ -363,9 +380,10 @@ export class MainScene {
       this.ui.showWarning('这个空间似乎在循环...寻找不对劲的地方！')
     }
     
-    // 检测是否是出口
-    if (room.type === RoomType.EXIT || (this.roomsExplored >= 13 && Math.random() < 0.3)) {
-      this.triggerExit()
+    // 检测是否是出口（必须是EXIT房间才能逃离）
+    if (room.type === RoomType.EXIT) {
+      logger.info('进入出口房间！')
+      this.ui.showWarning('🚪 这是出口！按 E 键与传送门互动逃离！')
     }
   }
   
@@ -410,37 +428,46 @@ export class MainScene {
   }
 
   private spawnEntity(room: Room): void {
-    if (!room.entityType) return
-    
-    // 根据难度调整生成概率
-    let spawnChance = 1
-    if (this.difficulty === 'easy') spawnChance = 0.5
-    if (this.difficulty === 'hard') spawnChance = 1.5
-    
-    if (Math.random() > spawnChance) {
-      logger.debug(`实体生成被跳过 (难度: ${this.difficulty})`)
-      return
-    }
-    
-    const worldX = room.position.gridX * GAME_CONFIG.ROOM_SIZE
-    const worldZ = room.position.gridZ * GAME_CONFIG.ROOM_SIZE
-    
-    logger.event(EventType.ENTITY_SPAWN, `生成实体: ${room.entityType}`)
-    
-    const entity = createEntity(room.entityType, {
-      x: worldX + (Math.random() - 0.5) * 4,
-      z: worldZ + (Math.random() - 0.5) * 4
-    })
-    
-    this.entities.push(entity)
-    this.scene.add(entity.mesh)
-    
-    // 显示警告对话
-    const context = this.getDialogueContext()
-    context.entityPresent = room.entityType
-    const dialogue = aiService.getImmediateDialogue(context)
-    if (dialogue) {
-      this.ui.showDialogue(this.companion?.state.name.split('（')[0] || '队友', dialogue, 4000)
+    try {
+      if (!room.entityType) return
+      
+      // 根据难度调整生成概率
+      let spawnChance = 1
+      if (this.difficulty === 'easy') spawnChance = 0.5
+      if (this.difficulty === 'hard') spawnChance = 1.5
+      
+      if (Math.random() > spawnChance) {
+        logger.debug(`实体生成被跳过 (难度: ${this.difficulty})`)
+        return
+      }
+      
+      const worldX = room.position.gridX * GAME_CONFIG.ROOM_SIZE
+      const worldZ = room.position.gridZ * GAME_CONFIG.ROOM_SIZE
+      
+      logger.event(EventType.ENTITY_SPAWN, `生成实体: ${room.entityType}`)
+      
+      const entity = createEntity(room.entityType, {
+        x: worldX + (Math.random() - 0.5) * 4,
+        z: worldZ + (Math.random() - 0.5) * 4
+      })
+      
+      this.entities.push(entity)
+      this.scene.add(entity.mesh)
+      
+      // 显示警告对话（不阻塞）
+      try {
+        const context = this.getDialogueContext()
+        context.entityPresent = room.entityType
+        const dialogue = aiService.getImmediateDialogue(context)
+        if (dialogue) {
+          this.ui.showDialogue(this.companion?.state.name.split('（')[0] || '队友', dialogue, 4000)
+        }
+      } catch (dialogueError) {
+        console.error('对话错误:', dialogueError)
+      }
+    } catch (error) {
+      console.error('实体生成错误:', error)
+      logger.error(`实体生成错误: ${error}`)
     }
   }
 
@@ -451,32 +478,42 @@ export class MainScene {
     const hasLight = this.player.state.lampLit
     const noiseLevel = this.player.state.noiseLevel
     
-    this.entities.forEach((entity, index) => {
+    // 使用filter代替forEach+splice，避免索引问题
+    this.entities = this.entities.filter((entity) => {
       if (!entity.isActive()) {
         this.scene.remove(entity.mesh)
-        this.entities.splice(index, 1)
-        return
+        return false // 移除此实体
       }
       
-      entity.update(delta, playerPos, noiseLevel, hasLight)
-      
-      // 检测与玩家的碰撞
-      const dist = entity.getDistanceToPlayer(playerPos)
-      if (dist < 0.8 && entity.canDamagePlayer()) {
-        const damage = entity.getDamage()
-        this.player!.takeDamage(damage)
+      try {
+        entity.update(delta, playerPos, noiseLevel, hasLight)
         
-        // 也影响队友
-        if (this.companion) {
-          this.companion.scare(damage * 0.5)
+        // 检测与玩家的碰撞
+        const dist = entity.getDistanceToPlayer(playerPos)
+        if (dist < 0.8 && entity.canDamagePlayer()) {
+          const damage = entity.getDamage()
+          this.player!.takeDamage(damage)
+          
+          // 也影响队友
+          if (this.companion) {
+            this.companion.scare(damage * 0.5)
+          }
         }
+        
+        // 笑魇特殊处理：空间锁定（只显示一次警告）
+        if (entity instanceof Smiler && (entity as Smiler).isPlayerLocked()) {
+          if (!this.smilerWarningShown) {
+            this.smilerWarningShown = true
+            this.ui.showWarning('保持安静！你被笑魇锁定了！')
+          }
+        } else if (entity instanceof Smiler) {
+          this.smilerWarningShown = false
+        }
+      } catch (error) {
+        console.error('实体更新错误:', error)
       }
       
-      // 笑魇特殊处理：空间锁定
-      if (entity instanceof Smiler && (entity as Smiler).isPlayerLocked()) {
-        // 玩家被锁定在当前房间
-        this.ui.showWarning('保持安静！你被笑魇锁定了！')
-      }
+      return true // 保留此实体
     })
   }
 
@@ -591,19 +628,29 @@ export class MainScene {
           this.currentRoom.items.splice(i, 1)
           this.ui.showPickupHint(item.name)
           
-          // 从场景中移除道具mesh
-          if (this.currentRoom.mesh) {
-            this.currentRoom.mesh.traverse((child) => {
-              if (child.userData.itemId === item.id) {
-                this.currentRoom!.mesh!.remove(child)
-              }
-            })
+          // 从场景中移除道具mesh（安全检查）
+          if (this.currentRoom.mesh && typeof this.currentRoom.mesh.traverse === 'function') {
+            try {
+              const toRemove: THREE.Object3D[] = []
+              this.currentRoom.mesh.traverse((child) => {
+                if (child.userData && child.userData.itemId === item.id) {
+                  toRemove.push(child)
+                }
+              })
+              toRemove.forEach(child => {
+                if (child.parent) {
+                  child.parent.remove(child)
+                }
+              })
+            } catch (error) {
+              console.error('移除道具mesh错误:', error)
+            }
           }
           
           return
         } else {
           logger.warn('背包已满，无法拾取')
-          this.ui.showWarning('背包已满！')
+          this.ui.showCriticalWarning('⚠️ 背包已满！请先使用或丢弃物品')
         }
       }
     }
@@ -701,7 +748,7 @@ export class MainScene {
     }
   }
 
-  // 同步版本的对话显示（不会阻塞游戏）
+  // 对话显示（优先使用AI，不阻塞游戏）
   private showCompanionDialogueSync(): void {
     if (!this.companion || !this.currentRoom) {
       logger.debug('无法显示对话：队友或房间不存在')
@@ -711,36 +758,36 @@ export class MainScene {
     logger.event(EventType.COMPANION_DIALOGUE, '触发对话')
     
     const context = this.getDialogueContext()
-    const dialogue = aiService.getDialogueSync(context)
+    const companionName = this.companion.state.name.split('（')[0]
     
-    if (dialogue) {
-      this.ui.showDialogue(
-        this.companion.state.name.split('（')[0],
-        dialogue,
-        5000
-      )
-      logger.debug(`对话内容: ${dialogue.substring(0, 30)}...`)
-    }
-  }
-
-  // 异步版本（用于非关键场景，不阻塞主循环）
-  private showCompanionDialogueAsync(): void {
-    if (!this.companion || !this.currentRoom) return
-    
-    const context = this.getDialogueContext()
-    
-    // 异步获取但不等待，使用.then处理
-    aiService.getDialogue(context).then(dialogue => {
-      if (dialogue && this.companion) {
-        this.ui.showDialogue(
-          this.companion.state.name.split('（')[0],
-          dialogue,
-          5000
-        )
+    // 如果有API key，直接使用异步AI对话（不先显示固定对话）
+    if (aiService.isUsingAI()) {
+      logger.info('使用AI生成对话...')
+      
+      // 直接异步获取AI对话
+      aiService.getDialogue(context).then(aiDialogue => {
+        if (aiDialogue && this.companion) {
+          logger.info(`AI对话成功: ${aiDialogue.substring(0, 30)}...`)
+          this.ui.showDialogue(companionName, aiDialogue, 6000)
+        } else if (!aiDialogue) {
+          logger.debug('AI对话为空（可能在冷却中）')
+        }
+      }).catch(error => {
+        logger.error(`AI对话获取失败: ${error}`)
+        // 失败时显示固定对话
+        const fixedDialogue = aiService.getFixedDialoguePublic(context)
+        if (fixedDialogue) {
+          this.ui.showDialogue(companionName, fixedDialogue, 5000)
+        }
+      })
+    } else {
+      // 无API时使用固定对话
+      const dialogue = aiService.getDialogueSync(context)
+      if (dialogue) {
+        this.ui.showDialogue(companionName, dialogue, 5000)
+        logger.debug(`固定对话: ${dialogue.substring(0, 30)}...`)
       }
-    }).catch(error => {
-      logger.error(`对话获取失败: ${error}`)
-    })
+    }
   }
 
   private getDialogueContext(): AIDialogueContext {

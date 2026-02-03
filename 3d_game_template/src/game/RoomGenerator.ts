@@ -610,7 +610,8 @@ export class RoomGenerator {
     
     const light = new THREE.PointLight(color, intensity, 12)
     light.position.set(worldX, wallHeight - 0.5, worldZ)
-    light.castShadow = true
+    // 禁用阴影以避免超过MAX_TEXTURE_IMAGE_UNITS限制
+    light.castShadow = false
     group.add(light)
   }
 

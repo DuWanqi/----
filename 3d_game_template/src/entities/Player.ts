@@ -66,10 +66,7 @@ export class Player {
         this.state.isRunning = true
       }
       
-      // E键使用道具
-      if (e.code === 'KeyE') {
-        this.toggleLamp()
-      }
+      // E键由MainScene处理，这里不再重复处理
     })
     
     window.addEventListener('keyup', (e) => { 
@@ -204,7 +201,8 @@ export class Player {
       if (!this.lampLight) {
         this.lampLight = new THREE.PointLight(COLORS.lampLight, 1.5, 8)
         this.lampLight.position.set(0, 1, 0)
-        this.lampLight.castShadow = true
+        // 禁用阴影以避免超过MAX_TEXTURE_IMAGE_UNITS限制
+        this.lampLight.castShadow = false
         this.mesh.add(this.lampLight)
       }
       this.lampLight.visible = true

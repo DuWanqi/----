@@ -190,8 +190,8 @@ export class AIService {
       return ''
     }
     
-    // 设置冷却时间
-    this.dialogueCooldown = 5
+    // 设置冷却时间（增加到15秒减少刷屏）
+    this.dialogueCooldown = 15
     
     logger.event(EventType.AI_FALLBACK, '使用固定对话模式')
     return this.getFixedDialogue(context)
@@ -199,9 +199,9 @@ export class AIService {
 
   // 获取对话（异步版本，带超时保护）
   async getDialogue(context: AIDialogueContext): Promise<string> {
-    // 冷却期间不生成新对话
+    // 冷却期间不生成新对话（使用更长的冷却时间）
     if (this.dialogueCooldown > 0) {
-      logger.debug('对话冷却中，跳过')
+      logger.debug(`对话冷却中，剩余 ${this.dialogueCooldown.toFixed(1)}秒`)
       return ''
     }
     
@@ -211,8 +211,8 @@ export class AIService {
       return ''
     }
     
-    // 设置冷却时间（避免对话刷屏）
-    this.dialogueCooldown = 5 // 5秒冷却
+    // 设置冷却时间（增加到20秒减少API调用频率）
+    this.dialogueCooldown = 20
     
     if (this.useAI && this.apiKey) {
       this.isRequesting = true
@@ -447,10 +447,15 @@ export class AIService {
     }
   }
 
-  // 获取立即对话（不等待冷却，用于重要事件）
+  // 获取立即对话（不等待冷却，用于重要事件如遭遇实体）
   getImmediateDialogue(context: AIDialogueContext): string {
-    this.dialogueCooldown = 3 // 设置较短冷却
-    logger.event(EventType.COMPANION_DIALOGUE, '触发立即对话')
+    this.dialogueCooldown = 10 // 重要事件后设置10秒冷却
+    logger.event(EventType.COMPANION_DIALOGUE, '触发立即对话（重要事件）')
+    return this.getFixedDialogue(context)
+  }
+
+  // 公开的固定对话获取（用于AI失败时的回退）
+  getFixedDialoguePublic(context: AIDialogueContext): string {
     return this.getFixedDialogue(context)
   }
 

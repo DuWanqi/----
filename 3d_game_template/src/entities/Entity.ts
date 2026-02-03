@@ -56,7 +56,8 @@ export abstract class BaseEntity implements EntityBehavior {
 
 // 笑魇 - 仅触发窃笑音效，保持安静即可规避
 export class Smiler extends BaseEntity {
-  private eyesMesh!: THREE.Mesh
+  private eyesMesh: THREE.Mesh | null = null
+  private eyeMaterial: THREE.MeshBasicMaterial | null = null
   private isTriggered = false
   private triggerTimer = 0
   private lockTimer = 0
@@ -67,43 +68,54 @@ export class Smiler extends BaseEntity {
   }
   
   protected createMesh(): void {
-    // 黑暗中的眼睛和嘴巴
-    const group = new THREE.Group()
-    
-    // 两只红色眼睛
-    const eyeGeom = new THREE.SphereGeometry(0.1, 8, 8)
-    const eyeMat = new THREE.MeshBasicMaterial({ 
-      color: COLORS.smiler,
-      emissive: COLORS.smiler,
-    })
-    
-    const leftEye = new THREE.Mesh(eyeGeom, eyeMat)
-    leftEye.position.set(-0.2, 1.5, 0)
-    group.add(leftEye)
-    
-    const rightEye = new THREE.Mesh(eyeGeom, eyeMat)
-    rightEye.position.set(0.2, 1.5, 0)
-    group.add(rightEye)
-    
-    // 笑容（弧形）
-    const smileGeom = new THREE.TorusGeometry(0.25, 0.03, 8, 16, Math.PI)
-    const smileMat = new THREE.MeshBasicMaterial({ color: COLORS.smiler })
-    const smile = new THREE.Mesh(smileGeom, smileMat)
-    smile.position.set(0, 1.2, 0.1)
-    smile.rotation.x = Math.PI
-    group.add(smile)
-    
-    this.eyesMesh = leftEye
-    this.mesh.add(group)
-    
-    // 初始可见（改为可见，便于玩家发现）
-    this.mesh.visible = true
+    try {
+      // 黑暗中的眼睛和嘴巴
+      const group = new THREE.Group()
+      
+      // 两只红色眼睛
+      const eyeGeom = new THREE.SphereGeometry(0.1, 8, 8)
+      const eyeMat = new THREE.MeshBasicMaterial({ 
+        color: COLORS.smiler || 0xff0000,
+        transparent: true,
+        opacity: 1.0
+      })
+      this.eyeMaterial = eyeMat  // 保存材质引用
+      
+      const leftEye = new THREE.Mesh(eyeGeom, eyeMat)
+      leftEye.position.set(-0.2, 1.5, 0)
+      group.add(leftEye)
+      this.eyesMesh = leftEye  // 保存眼睛引用
+      
+      const rightEye = new THREE.Mesh(eyeGeom, eyeMat)
+      rightEye.position.set(0.2, 1.5, 0)
+      group.add(rightEye)
+      
+      // 笑容（弧形）
+      const smileGeom = new THREE.TorusGeometry(0.25, 0.03, 8, 16, Math.PI)
+      const smileMat = new THREE.MeshBasicMaterial({ color: COLORS.smiler || 0xff0000 })
+      const smile = new THREE.Mesh(smileGeom, smileMat)
+      smile.position.set(0, 1.2, 0.1)
+      smile.rotation.x = Math.PI
+      group.add(smile)
+      
+      this.mesh.add(group)
+      
+      // 初始可见
+      this.mesh.visible = true
+    } catch (error) {
+      console.error('Smiler createMesh error:', error)
+    }
   }
   
   update(deltaTime: number, playerPos: Position, playerNoiseLevel: number, hasLight: boolean): void {
+    // 安全检查
+    if (!this.eyeMaterial) {
+      return  // 如果材质未初始化，跳过更新
+    }
+    
     const dist = this.getDistanceToPlayer(playerPos)
     
-    // 笑魇总是可见的，但在有灯光时会变暗
+    // 笑魇总是可见的
     this.mesh.visible = true
     
     // 面向玩家
@@ -112,12 +124,11 @@ export class Smiler extends BaseEntity {
     this.mesh.rotation.y = Math.atan2(dx, dz)
     
     // 根据距离和灯光调整亮度
-    const eyeMat = this.eyesMesh.material as THREE.MeshBasicMaterial
     if (dist < 6) {
       // 玩家靠近时眼睛更亮
-      const baseIntensity = hasLight ? 0.3 : 1.0  // 有灯时变暗但仍可见
+      const baseIntensity = hasLight ? 0.3 : 1.0
       const flickerIntensity = 0.3 + Math.sin(Date.now() * 0.01) * 0.2
-      eyeMat.opacity = baseIntensity * flickerIntensity
+      this.eyeMaterial.opacity = baseIntensity * flickerIntensity
       
       // 检测噪音（发出声音会激怒笑魇）
       if (playerNoiseLevel > 30 && !hasLight) {
@@ -126,7 +137,7 @@ export class Smiler extends BaseEntity {
       }
     } else {
       // 远处时眼睛微弱闪烁
-      eyeMat.opacity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2
+      this.eyeMaterial.opacity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2
     }
     
     // 锁定倒计时
