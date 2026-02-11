@@ -2,3 +2,6 @@ node_modules
 dist
 *.local
 .DS_Store
+
+# BitFun snapshot data - auto managed
+.bitfun/

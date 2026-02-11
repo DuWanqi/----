@@ -96,6 +96,7 @@ export const TUTORIAL_PAGES = [
 
 export class GameUI {
   private container: HTMLDivElement
+  private titleScreenContainer: HTMLDivElement
   private hudContainer: HTMLDivElement
   private dialogueContainer: HTMLDivElement
   private inventoryContainer: HTMLDivElement
@@ -110,6 +111,7 @@ export class GameUI {
   private npcDialogueCallbacks: NPCDialogueCallbacks | null = null
   private currentTutorialPage = 0
   private hasShownTutorial = false
+  private onTitleStartCallback: (() => void) | null = null
   
   constructor() {
     // 创建主容器
@@ -128,6 +130,7 @@ export class GameUI {
     document.body.appendChild(this.container)
     
     // 创建各个UI组件
+    this.titleScreenContainer = this.createTitleScreen()
     this.hudContainer = this.createHUD()
     this.dialogueContainer = this.createDialogueBox()
     this.inventoryContainer = this.createInventory()
@@ -137,6 +140,7 @@ export class GameUI {
     this.npcDialogueContainer = this.createNPCDialogue()
     this.tutorialContainer = this.createTutorial()
     
+    this.container.appendChild(this.titleScreenContainer)
     this.container.appendChild(this.hudContainer)
     this.container.appendChild(this.dialogueContainer)
     this.container.appendChild(this.inventoryContainer)
@@ -150,6 +154,148 @@ export class GameUI {
     this.addTutorialStyles()
   }
 
+  private createTitleScreen(): HTMLDivElement {
+    const titleScreen = document.createElement('div')
+    titleScreen.id = 'title-screen'
+    titleScreen.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('assets/AI+%E3%80%8A%E5%B1%B1%E5%B1%8B%E6%83%8A%E9%AD%82%E3%80%8B%E6%8B%93%E5%B1%95%E6%96%B9%E5%90%91.png') center center / cover no-repeat;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      pointer-events: auto;
+      z-index: 2000;
+      transition: opacity 1s ease-out;
+    `
+    
+    titleScreen.innerHTML = `
+      <div style="
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 40%;
+        background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+        pointer-events: none;
+      "></div>
+      
+      <div style="
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        padding-bottom: 80px;
+      ">
+        <div id="title-flashlight" style="
+          width: 200px;
+          height: 200px;
+          position: absolute;
+          top: -300px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: radial-gradient(circle, rgba(232,246,243,0.15) 0%, transparent 70%);
+          border-radius: 50%;
+          animation: flashlightFlicker 4s ease-in-out infinite;
+          pointer-events: none;
+        "></div>
+        
+        <button id="title-start-btn" style="
+          padding: 20px 80px;
+          background: transparent;
+          border: 2px solid rgba(139, 0, 0, 0.8);
+          color: #8B0000;
+          font-size: 24px;
+          font-family: 'Courier New', monospace;
+          letter-spacing: 8px;
+          cursor: pointer;
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
+          transition: all 0.3s;
+          text-shadow: 0 0 10px rgba(139, 0, 0, 0.5);
+        ">
+          <span style="position: relative; z-index: 1;">开始游戏</span>
+          <div style="
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(139, 0, 0, 0.2);
+            transition: left 0.3s;
+          "></div>
+        </button>
+        
+        <div style="
+          margin-top: 30px;
+          color: #666;
+          font-size: 12px;
+          font-family: 'Courier New', monospace;
+          letter-spacing: 2px;
+        ">
+          按任意键或点击按钮开始
+        </div>
+      </div>
+      
+      <style>
+        @keyframes flashlightFlicker {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+          52% { opacity: 0.1; }
+          54% { opacity: 0.5; }
+          90% { opacity: 0.4; }
+          92% { opacity: 0.1; }
+          94% { opacity: 0.5; }
+        }
+        
+        #title-start-btn:hover {
+          border-color: #8B0000;
+          box-shadow: 0 0 30px rgba(139, 0, 0, 0.5), inset 0 0 20px rgba(139, 0, 0, 0.1);
+          text-shadow: 0 0 20px rgba(139, 0, 0, 0.8);
+        }
+        
+        #title-start-btn:hover div {
+          left: 0;
+        }
+      </style>
+    `
+    
+    const startBtn = titleScreen.querySelector('#title-start-btn') as HTMLButtonElement
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        this.hideTitleScreen()
+      })
+    }
+    
+    const keyHandler = (e: KeyboardEvent) => {
+      if (titleScreen.style.display !== 'none') {
+        this.hideTitleScreen()
+        document.removeEventListener('keydown', keyHandler)
+      }
+    }
+    document.addEventListener('keydown', keyHandler)
+    
+    return titleScreen
+  }
+  
+  private hideTitleScreen(): void {
+    if (this.onTitleStartCallback) {
+      this.onTitleStartCallback()
+    }
+    this.titleScreenContainer.style.opacity = '0'
+    setTimeout(() => {
+      this.titleScreenContainer.style.display = 'none'
+    }, 1000)
+  }
+  
+  setOnTitleStart(callback: () => void): void {
+    this.onTitleStartCallback = callback
+  }
+
   private createHUD(): HTMLDivElement {
     const hud = document.createElement('div')
     hud.id = 'hud'
@@ -157,50 +303,75 @@ export class GameUI {
       position: absolute;
       top: 20px;
       left: 20px;
-      padding: 15px 20px;
-      background: linear-gradient(135deg, rgba(20, 20, 30, 0.95) 0%, rgba(40, 35, 45, 0.9) 100%);
-      border: 1px solid rgba(201, 180, 88, 0.3);
-      border-radius: 8px;
-      color: #e0d5c0;
-      font-size: 14px;
-      min-width: 200px;
-      backdrop-filter: blur(5px);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      padding: 0;
+      background: transparent;
+      color: #E8F6F3;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      min-width: 220px;
       display: none;
+      text-shadow: 0 0 5px rgba(232, 246, 243, 0.3);
     `
     hud.innerHTML = `
-      <div style="font-size: 16px; font-weight: bold; color: #c9b458; margin-bottom: 12px; 
-                  border-bottom: 1px solid rgba(201, 180, 88, 0.3); padding-bottom: 8px;">
-        🏚️ 逃离后室：山屋惊魂
-      </div>
-      <div id="hud-sanity" style="margin-bottom: 8px;">
-        <span style="color: #888;">精神值：</span>
-        <div style="display: inline-block; width: 100px; height: 12px; background: #333; border-radius: 6px; overflow: hidden; vertical-align: middle;">
-          <div id="sanity-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #00ff88, #00cc66); transition: width 0.3s;"></div>
+      <div style="
+        border: 1px solid rgba(212, 172, 13, 0.4);
+        border-left: 3px solid #D4AC0D;
+        background: rgba(10, 10, 15, 0.85);
+        padding: 12px 15px;
+      ">
+        <div style="
+          font-size: 11px;
+          color: #D4AC0D;
+          letter-spacing: 3px;
+          margin-bottom: 10px;
+          border-bottom: 1px solid rgba(212, 172, 13, 0.2);
+          padding-bottom: 6px;
+        ">
+          STATUS_MONITOR
         </div>
-        <span id="sanity-text" style="color: #00ff88; margin-left: 5px;">100%</span>
-      </div>
-      <div id="hud-companion" style="margin-bottom: 8px;">
-        <span style="color: #888;">队友：</span>
-        <span id="companion-name" style="color: #9932cc;">--</span>
-        <div style="display: inline-block; width: 60px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; vertical-align: middle; margin-left: 5px;">
-          <div id="companion-sanity-bar" style="width: 100%; height: 100%; background: #9932cc; transition: width 0.3s;"></div>
+        
+        <div id="hud-sanity" style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span style="color: #888;">SANITY</span>
+            <span id="sanity-text" style="color: #E8F6F3;">100%</span>
+          </div>
+          <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1);">
+            <div id="sanity-bar" style="width: 100%; height: 100%; background: #D4AC0D; transition: width 0.3s, background 0.3s;"></div>
+          </div>
+        </div>
+        
+        <div id="hud-companion" style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span style="color: #888;">COMPANION</span>
+            <span id="companion-name" style="color: #E8F6F3;">--</span>
+          </div>
+          <div style="width: 100%; height: 2px; background: rgba(255,255,255,0.1);">
+            <div id="companion-sanity-bar" style="width: 100%; height: 100%; background: #666; transition: width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <div id="hud-trust" style="margin-bottom: 10px; display: flex; justify-content: space-between;">
+          <span style="color: #888;">TRUST</span>
+          <span id="trust-text" style="color: #E8F6F3;">70%</span>
+        </div>
+        
+        <div id="hud-rooms" style="margin-bottom: 10px; display: flex; justify-content: space-between;">
+          <span style="color: #888;">EXPLORED</span>
+          <span id="rooms-text" style="color: #E8F6F3;">0 ROOMS</span>
+        </div>
+        
+        <div id="hud-lamp" style="display: none; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <span style="color: #D4AC0D;">[LAMP ACTIVE]</span>
         </div>
       </div>
-      <div id="hud-trust" style="margin-bottom: 8px;">
-        <span style="color: #888;">信任度：</span>
-        <span id="trust-text" style="color: #ffaa00;">70%</span>
-      </div>
-      <div id="hud-rooms" style="margin-bottom: 8px;">
-        <span style="color: #888;">已探索：</span>
-        <span id="rooms-text" style="color: #87ceeb;">0 个房间</span>
-      </div>
-      <div id="hud-lamp" style="display: none;">
-        <span style="color: #ffa500;">🔦 煤油灯：</span>
-        <span id="lamp-status" style="color: #ffa500;">已点亮</span>
-      </div>
-      <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(201, 180, 88, 0.2); font-size: 11px; color: #666;">
-        WASD 移动 | Shift 奔跑 | E 煤油灯 | I 背包 | ESC 菜单
+      
+      <div style="
+        margin-top: 8px;
+        font-size: 10px;
+        color: #444;
+        letter-spacing: 1px;
+      ">
+        WASD MOVE | SHIFT SPRINT | E LAMP | I INV | ESC MENU
       </div>
     `
     return hud
@@ -211,25 +382,35 @@ export class GameUI {
     dialogue.id = 'dialogue-box'
     dialogue.style.cssText = `
       position: absolute;
-      bottom: 100px;
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
-      max-width: 600px;
-      padding: 15px 25px;
-      background: linear-gradient(135deg, rgba(30, 25, 40, 0.95) 0%, rgba(50, 40, 60, 0.9) 100%);
-      border: 1px solid rgba(153, 50, 204, 0.5);
-      border-radius: 10px;
-      color: #e0d5c0;
-      font-size: 15px;
-      line-height: 1.6;
+      width: 90%;
+      max-width: 700px;
+      background: rgba(10, 10, 15, 0.95);
+      border: 1px solid rgba(232, 246, 243, 0.2);
+      border-left: 3px solid #E8F6F3;
+      color: #E8F6F3;
+      font-size: 13px;
+      line-height: 1.8;
       opacity: 0;
       transition: opacity 0.3s;
       pointer-events: auto;
-      box-shadow: 0 4px 20px rgba(153, 50, 204, 0.3);
+      font-family: 'Courier New', monospace;
+      box-shadow: 0 0 30px rgba(232, 246, 243, 0.1);
     `
     dialogue.innerHTML = `
-      <div id="dialogue-speaker" style="color: #9932cc; font-weight: bold; margin-bottom: 5px;"></div>
-      <div id="dialogue-text"></div>
+      <div style="padding: 15px 20px;">
+        <div id="dialogue-speaker" style="
+          font-size: 11px;
+          color: #D4AC0D;
+          letter-spacing: 3px;
+          margin-bottom: 8px;
+          border-bottom: 1px solid rgba(232, 246, 243, 0.1);
+          padding-bottom: 8px;
+        "></div>
+        <div id="dialogue-text" style="min-height: 40px;"></div>
+      </div>
     `
     return dialogue
   }
@@ -242,24 +423,45 @@ export class GameUI {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 400px;
-      padding: 20px;
-      background: linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(40, 35, 45, 0.95) 100%);
-      border: 2px solid rgba(201, 180, 88, 0.5);
-      border-radius: 12px;
-      color: #e0d5c0;
+      width: 420px;
+      padding: 0;
+      background: rgba(10, 10, 15, 0.95);
+      border: 1px solid rgba(212, 172, 13, 0.4);
+      border-left: 3px solid #D4AC0D;
+      color: #E8F6F3;
       display: none;
       pointer-events: auto;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+      font-family: 'Courier New', monospace;
     `
     inventory.innerHTML = `
-      <div style="font-size: 18px; font-weight: bold; color: #c9b458; margin-bottom: 15px; 
-                  border-bottom: 1px solid rgba(201, 180, 88, 0.3); padding-bottom: 10px;">
-        🎒 背包 <span id="inventory-count" style="font-size: 14px; color: #888;">(0/${GAME_CONFIG.MAX_INVENTORY})</span>
+      <div style="padding: 15px 20px; border-bottom: 1px solid rgba(212, 172, 13, 0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: #D4AC0D; letter-spacing: 3px;">
+            INVENTORY
+          </div>
+          <div id="inventory-count" style="font-size: 11px; color: #666;">
+            [0/${GAME_CONFIG.MAX_INVENTORY}]
+          </div>
+        </div>
       </div>
-      <div id="inventory-items" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; min-height: 150px;"></div>
-      <div style="margin-top: 15px; text-align: center; color: #666; font-size: 12px;">
-        点击道具使用 | 按 I 关闭
+      
+      <div id="inventory-items" style="
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: rgba(212, 172, 13, 0.1);
+        padding: 1px;
+      "></div>
+      
+      <div style="
+        padding: 12px 20px;
+        border-top: 1px solid rgba(212, 172, 13, 0.2);
+        text-align: center;
+        font-size: 10px;
+        color: #444;
+        letter-spacing: 1px;
+      ">
+        [CLICK TO USE] | [I] TO CLOSE
       </div>
     `
     return inventory
@@ -296,95 +498,229 @@ export class GameUI {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.9);
-      display: flex;
+      background: #0A0A0F;
+      display: none;
       flex-direction: column;
       justify-content: flex-start;
       align-items: center;
       pointer-events: auto;
       overflow-y: auto;
-      padding: 30px 0;
+      padding: 40px 0;
+      font-family: 'Courier New', monospace;
     `
     menu.innerHTML = `
-      <div style="text-align: center;">
-        <h1 style="font-size: 48px; color: #c9b458; margin-bottom: 10px; text-shadow: 0 0 20px rgba(201, 180, 88, 0.5);">
-          🏚️ 逃离后室
-        </h1>
-        <h2 style="font-size: 24px; color: #888; margin-bottom: 40px;">山屋惊魂</h2>
+      <div style="text-align: center; max-width: 600px;">
+        <div style="
+          font-size: 14px;
+          color: #D4AC0D;
+          letter-spacing: 8px;
+          margin-bottom: 10px;
+          opacity: 0.7;
+        ">
+          LEVEL 5 - THE HOTEL
+        </div>
         
-        <div style="margin-bottom: 30px;">
-          <div style="color: #888; margin-bottom: 15px;">选择你的队友：</div>
-          <div id="companion-select" style="display: flex; gap: 15px; justify-content: center;">
+        <h1 style="
+          font-size: 42px;
+          color: #D4AC0D;
+          margin-bottom: 5px;
+          letter-spacing: 4px;
+          font-weight: normal;
+          text-shadow: 0 0 20px rgba(212, 172, 13, 0.3);
+        ">
+          逃离后室
+        </h1>
+        
+        <h2 style="
+          font-size: 16px;
+          color: #666;
+          margin-bottom: 50px;
+          letter-spacing: 6px;
+          font-weight: normal;
+        ">
+          山屋惊魂
+        </h2>
+        
+        <div style="margin-bottom: 40px;">
+          <div style="
+            color: #444;
+            margin-bottom: 20px;
+            font-size: 11px;
+            letter-spacing: 3px;
+          ">
+            SELECT COMPANION
+          </div>
+          <div id="companion-select" style="display: flex; gap: 20px; justify-content: center;">
             <button class="companion-btn" data-type="psychic" style="
-              padding: 15px 25px; background: rgba(153, 50, 204, 0.3); border: 2px solid #9932cc;
-              color: #9932cc; border-radius: 8px; cursor: pointer; font-size: 14px;
+              padding: 20px 30px;
+              background: transparent;
+              border: 1px solid #444;
+              color: #666;
+              cursor: pointer;
+              font-size: 13px;
+              font-family: 'Courier New', monospace;
+              letter-spacing: 2px;
               transition: all 0.3s;
+              text-align: center;
+              min-width: 120px;
             ">
-              🔮 艾琳<br><span style="font-size: 11px; color: #888;">通灵者</span>
+              <div style="font-size: 11px; color: #444; margin-bottom: 5px;">[PSYCHIC]</div>
+              艾琳
             </button>
             <button class="companion-btn selected" data-type="explorer" style="
-              padding: 15px 25px; background: rgba(34, 139, 34, 0.3); border: 2px solid #228b22;
-              color: #228b22; border-radius: 8px; cursor: pointer; font-size: 14px;
+              padding: 20px 30px;
+              background: transparent;
+              border: 1px solid #D4AC0D;
+              color: #D4AC0D;
+              cursor: pointer;
+              font-size: 13px;
+              font-family: 'Courier New', monospace;
+              letter-spacing: 2px;
               transition: all 0.3s;
+              text-align: center;
+              min-width: 120px;
+              box-shadow: 0 0 15px rgba(212, 172, 13, 0.2);
             ">
-              🧭 马克<br><span style="font-size: 11px; color: #888;">探险家</span>
+              <div style="font-size: 11px; color: #D4AC0D; margin-bottom: 5px;">[EXPLORER]</div>
+              马克
             </button>
             <button class="companion-btn" data-type="historian" style="
-              padding: 15px 25px; background: rgba(139, 69, 19, 0.3); border: 2px solid #8b4513;
-              color: #8b4513; border-radius: 8px; cursor: pointer; font-size: 14px;
+              padding: 20px 30px;
+              background: transparent;
+              border: 1px solid #444;
+              color: #666;
+              cursor: pointer;
+              font-size: 13px;
+              font-family: 'Courier New', monospace;
+              letter-spacing: 2px;
               transition: all 0.3s;
+              text-align: center;
+              min-width: 120px;
             ">
-              📚 李博士<br><span style="font-size: 11px; color: #888;">历史学家</span>
+              <div style="font-size: 11px; color: #444; margin-bottom: 5px;">[SCHOLAR]</div>
+              李博士
             </button>
           </div>
         </div>
         
         <button id="start-btn" style="
-          padding: 18px 50px; background: linear-gradient(135deg, #c9b458, #a89648);
-          border: none; color: #1a1a2e; font-size: 20px; font-weight: bold;
-          border-radius: 10px; cursor: pointer; margin-bottom: 20px;
-          box-shadow: 0 4px 15px rgba(201, 180, 88, 0.4);
-          transition: transform 0.2s, box-shadow 0.2s;
+          padding: 18px 60px;
+          background: transparent;
+          border: 2px solid #8B0000;
+          color: #8B0000;
+          font-size: 16px;
+          font-family: 'Courier New', monospace;
+          letter-spacing: 6px;
+          cursor: pointer;
+          margin-bottom: 30px;
+          transition: all 0.3s;
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
         ">
-          开始探索
+          <span style="position: relative; z-index: 1;">开始探索</span>
         </button>
         
-        <div style="display: flex; gap: 15px; justify-content: center;">
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 40px;">
           <button id="tutorial-btn" style="
-            padding: 10px 25px; background: transparent; border: 1px solid #9932cc;
-            color: #da70d6; font-size: 14px; border-radius: 5px; cursor: pointer;
+            padding: 10px 30px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #555;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 3px;
+            cursor: pointer;
             transition: all 0.3s;
           ">
-            📖 教程
+            [TUTORIAL]
           </button>
           <button id="settings-btn" style="
-            padding: 10px 25px; background: transparent; border: 1px solid #666;
-            color: #888; font-size: 14px; border-radius: 5px; cursor: pointer;
+            padding: 10px 30px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #555;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 3px;
+            cursor: pointer;
             transition: all 0.3s;
           ">
-            ⚙️ 设置
+            [SETTINGS]
           </button>
         </div>
         
-        <div style="margin-top: 30px; color: #555; font-size: 12px; max-width: 400px; line-height: 1.6;">
-          山屋是后室的Level 5层级，一个19世纪因家族崇拜外神而意外打通后室通道的废弃酒店。
-          <br>你与AI同伴误入此处，必须在空间循环与实体威胁中寻找出口...
+        <div style="
+          margin-top: 20px;
+          color: #333;
+          font-size: 11px;
+          max-width: 450px;
+          line-height: 1.8;
+          letter-spacing: 1px;
+          border: 1px solid #222;
+          padding: 20px;
+          background: rgba(0,0,0,0.3);
+        ">
+          山屋是后室的Level 5层级，一个19世纪因家族崇拜外神<br>
+          而意外打通后室通道的废弃酒店。你与同伴误入此处，<br>
+          必须在空间循环与实体威胁中寻找出口...
         </div>
         
-        <div style="margin-top: 25px; padding: 15px 20px; background: rgba(50, 50, 60, 0.5); border-radius: 8px; border: 1px solid rgba(100, 100, 120, 0.3);">
-          <div style="color: #c9b458; font-size: 14px; font-weight: bold; margin-bottom: 12px;">🎮 操作指南</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #aaa;">
-            <div><span style="color: #87ceeb; font-weight: bold;">WASD / 方向键</span> - 移动</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">Shift</span> - 奔跑</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">Space</span> - 拾取物品</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">E</span> - 互动/煤油灯</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">I</span> - 打开背包</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">F</span> - 与队友交谈</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">~</span> - 查看日志</div>
-            <div><span style="color: #87ceeb; font-weight: bold;">ESC</span> - 暂停菜单</div>
+        <div style="
+          margin-top: 30px;
+          padding: 15px 25px;
+          border: 1px solid #222;
+          background: rgba(0,0,0,0.3);
+        ">
+          <div style="
+            color: #D4AC0D;
+            font-size: 11px;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+            opacity: 0.7;
+          ">
+            CONTROLS
+          </div>
+          <div style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 30px;
+            font-size: 11px;
+            color: #444;
+            letter-spacing: 1px;
+            text-align: left;
+          ">
+            <div><span style="color: #666;">[WASD]</span> MOVE</div>
+            <div><span style="color: #666;">[SHIFT]</span> SPRINT</div>
+            <div><span style="color: #666;">[SPACE]</span> PICKUP</div>
+            <div><span style="color: #666;">[E]</span> LAMP</div>
+            <div><span style="color: #666;">[I]</span> INVENTORY</div>
+            <div><span style="color: #666;">[F]</span> TALK</div>
+            <div><span style="color: #666;">[~]</span> LOG</div>
+            <div><span style="color: #666;">[ESC]</span> MENU</div>
           </div>
         </div>
       </div>
+      
+      <style>
+        .companion-btn:hover {
+          border-color: #666 !important;
+          color: #888 !important;
+        }
+        .companion-btn.selected:hover {
+          border-color: #D4AC0D !important;
+          color: #D4AC0D !important;
+        }
+        #start-btn:hover {
+          background: rgba(139, 0, 0, 0.1);
+          box-shadow: 0 0 30px rgba(139, 0, 0, 0.3), inset 0 0 20px rgba(139, 0, 0, 0.05);
+          text-shadow: 0 0 10px rgba(139, 0, 0, 0.5);
+        }
+        #tutorial-btn:hover, #settings-btn:hover {
+          border-color: #444;
+          color: #777;
+        }
+      </style>
     `
     return menu
   }
@@ -1141,7 +1477,7 @@ export class GameUI {
     }
   }
 
-  // 显示对话
+  // 显示对话（带打字机效果）
   showDialogue(speaker: string, text: string, duration = 5000): void {
     if (!text) return
     
@@ -1149,8 +1485,7 @@ export class GameUI {
     const textEl = document.getElementById('dialogue-text')
     
     if (speakerEl && textEl) {
-      speakerEl.textContent = speaker
-      textEl.textContent = text
+      speakerEl.textContent = `> ${speaker.toUpperCase()}`
       this.dialogueContainer.style.opacity = '1'
       
       // 清除之前的定时器
@@ -1158,10 +1493,25 @@ export class GameUI {
         clearTimeout(this.dialogueTimeout)
       }
       
-      // 设置自动隐藏
+      // 打字机效果
+      let charIndex = 0
+      textEl.textContent = ''
+      
+      const typeChar = () => {
+        if (charIndex < text.length) {
+          textEl.textContent += text[charIndex]
+          charIndex++
+          setTimeout(typeChar, 30)
+        }
+      }
+      
+      typeChar()
+      
+      // 设置自动隐藏（从打字完成后开始计时）
+      const typeDuration = text.length * 30 + duration
       this.dialogueTimeout = window.setTimeout(() => {
         this.hideDialogue()
-      }, duration)
+      }, typeDuration)
     }
   }
 
@@ -1176,37 +1526,40 @@ export class GameUI {
     
     if (!itemsContainer || !countEl) return
     
-    countEl.textContent = `(${items.length}/${GAME_CONFIG.MAX_INVENTORY})`
+    countEl.textContent = `[${items.length}/${GAME_CONFIG.MAX_INVENTORY}]`
     
     itemsContainer.innerHTML = ''
     
     items.forEach(item => {
       const itemEl = document.createElement('div')
       itemEl.style.cssText = `
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(201, 180, 88, 0.3);
-        border-radius: 8px;
+        padding: 15px 10px;
+        background: rgba(10, 10, 15, 0.9);
         text-align: center;
         cursor: ${item.usable ? 'pointer' : 'default'};
         transition: all 0.2s;
+        min-height: 90px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
       `
       
       const icon = this.getItemIcon(item.type)
       itemEl.innerHTML = `
-        <div style="font-size: 24px; margin-bottom: 5px;">${icon}</div>
-        <div style="font-size: 12px; color: #c9b458;">${item.name}</div>
-        <div style="font-size: 10px; color: #666; margin-top: 3px;">${item.description}</div>
+        <div style="font-size: 20px; margin-bottom: 6px;">${icon}</div>
+        <div style="font-size: 10px; color: #D4AC0D; letter-spacing: 1px;">${item.name}</div>
+        <div style="font-size: 9px; color: #444; margin-top: 4px; letter-spacing: 0.5px;">${item.description}</div>
       `
       
       if (item.usable) {
         itemEl.addEventListener('mouseenter', () => {
-          itemEl.style.background = 'rgba(201, 180, 88, 0.2)'
-          itemEl.style.borderColor = '#c9b458'
+          itemEl.style.background = 'rgba(212, 172, 13, 0.1)'
+          itemEl.style.boxShadow = 'inset 0 0 0 1px rgba(212, 172, 13, 0.3)'
         })
         itemEl.addEventListener('mouseleave', () => {
-          itemEl.style.background = 'rgba(255, 255, 255, 0.05)'
-          itemEl.style.borderColor = 'rgba(201, 180, 88, 0.3)'
+          itemEl.style.background = 'rgba(10, 10, 15, 0.9)'
+          itemEl.style.boxShadow = 'none'
         })
         itemEl.addEventListener('click', () => onUse(item.id))
       }
@@ -1218,12 +1571,14 @@ export class GameUI {
     for (let i = items.length; i < GAME_CONFIG.MAX_INVENTORY; i++) {
       const emptyEl = document.createElement('div')
       emptyEl.style.cssText = `
-        padding: 12px;
-        background: rgba(0, 0, 0, 0.2);
-        border: 1px dashed rgba(100, 100, 100, 0.3);
-        border-radius: 8px;
-        min-height: 60px;
+        padding: 15px 10px;
+        background: rgba(5, 5, 8, 0.5);
+        min-height: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       `
+      emptyEl.innerHTML = `<div style="width: 8px; height: 8px; background: rgba(100,100,100,0.1);"></div>`
       itemsContainer.appendChild(emptyEl)
     }
   }

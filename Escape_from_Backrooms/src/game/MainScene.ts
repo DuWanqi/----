@@ -79,6 +79,11 @@ export class MainScene {
     // 设置输入
     this.setupInput()
 
+    // 设置开始界面回调
+    this.ui.setOnTitleStart(() => {
+      this.ui.showMenu()
+    })
+    
     // 设置UI事件
     this.ui.setupEventListeners({
       onStart: (companionType) => this.startGame(companionType),
@@ -879,7 +884,7 @@ export class MainScene {
       
       if (this.player.pickupItem(torch)) {
         this.ui.showPickupHint('🔥 合成成功：火把！（永久光源，按I使用）')
-        logger.event(EventType.ITEM_PICKUP, '合成了火把')
+        logger.event(EventType.PLAYER_PICKUP, '合成了火把')
         
         // 更新背包UI
         if (this.inventoryOpen) {
